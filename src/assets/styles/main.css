@@ -1,1 +1,35 @@
 @import "tailwindcss";
+@variant dark (&:where(.dark, .dark *));
+
+/* Анімація зникнення / появи */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Початковий стан при появі та кінцевий при зникненні */
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* Полоса розтягування колонки */
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  transition: background-color 0.15s ease;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background-color: #10b981; /* emerald-500 */
+}

@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import {computed, onMounted, onUnmounted, reactive, ref, watch} from 'vue'
+import {computed, ref, watch} from 'vue'
 import {RouterLink} from 'vue-router'
-import {toast} from 'vue-sonner'
 import {useProjectStore} from '@/stores/projects'
 import {useTaskStore} from '@/stores/tasks'
 import {ProjectStatus, TaskStatus} from "@/types";
+import TaskCreateModal from "@/components/tasks/TaskCreateModal.vue";
+import {useLocalStorageRef} from "@/composables/useLocalStorageRef.ts";
+import ViewModeToggle, { type ToggleOption } from '@/components/common/ViewModeToggle.vue'
+import TasksKanban from "@/components/tasks/TasksKanban.vue";
+import TasksTable from "@/components/tasks/TasksTable.vue";
+import { useTableSort } from '@/composables/useTableSort'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 
 // Отримуємо id проекту з пропсів роутера (автоматично конвертований у number)
 const props = defineProps<{
@@ -14,24 +20,62 @@ const props = defineProps<{
 const projectsStore = useProjectStore()
 const tasksStore = useTaskStore()
 
-// Список колонок Kanban-дошки
-const columns: { id: TaskStatus; title: string; color: string; badgeBg: string }[] = [
-  { id: TaskStatus.TODO, title: 'До виконання', color: 'border-slate-300', badgeBg: 'bg-slate-100 text-slate-700' },
-  { id: TaskStatus.IN_PROGRESS, title: 'В роботі', color: 'border-amber-400', badgeBg: 'bg-amber-50 text-amber-700 border border-amber-200' },
-  { id: TaskStatus.DONE, title: 'Виконано', color: 'border-emerald-500', badgeBg: 'bg-emerald-50 text-emerald-700 border border-emerald-200' }
+type TaskViewMode = 'kanban' | 'table'
+
+const viewMode = useLocalStorageRef<TaskViewMode>('tasks_view_mode', 'kanban')
+
+const taskViewOptions: ToggleOption<TaskViewMode>[] = [
+  { value: 'kanban', title: 'Канбан', icon: 'kanban' },
+  { value: 'table', title: 'Таблиця', icon: 'table' }
 ]
 
-// Пошук та фільтрація завдань
-const searchQuery = ref('')
+const currentViewComponent = computed(() => {
+  return viewMode.value === 'kanban' ? TasksKanban : TasksTable
+})
+
+// Початкові значення з URL query (з дефолтними фолбеками)
+type TaskSortField = 'createdAt' | 'title' | 'assignee' | 'status' | 'dueDate' | 'order'
+
+const { searchQuery, statusFilter, assigneeFilter, sortBy, sortOrder, handleSort } = useTableSort<TaskSortField>({
+  defaultSort: 'createdAt',
+  defaultOrder: 'asc'
+})
+
+const sortOptions: { value: TaskSortField; label: string }[] = [
+  { value: 'order', label: 'По порядку' },
+  { value: 'title', label: 'Назва' },
+  { value: 'status', label: 'Статус' },
+  { value: 'assignee', label: 'Виконавець' },
+  { value: 'dueDate', label: 'Термін' },
+  { value: 'createdAt', label: 'Дата створення' }
+]
 
 const filteredTasks = computed(() => {
-  if (!tasksStore.tasks) return []
-  const query = searchQuery.value.toLowerCase().trim()
-  if (!query) return tasksStore.tasks
+  let list = tasksStore.tasks
 
-  return tasksStore.tasks.filter(
-    (task) => task.title.toLowerCase().includes(query) || task.assignee?.toLowerCase().includes(query)
-  )
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.toLowerCase().trim()
+    list = list.filter(p => p.title.toLowerCase().includes(q))
+  }
+
+  if (statusFilter.value !== 'all') {
+    list = list.filter(p => p.status === statusFilter.value)
+  }
+
+  if (assigneeFilter.value !== 'all') {
+    list = list.filter(task => task.assignee === assigneeFilter.value)
+  }
+
+  return [...list].sort((a, b) => {
+    const mod = sortOrder.value === 'asc' ? 1 : -1
+    switch (sortBy.value) {
+      case 'title': return a.title.localeCompare(b.title, 'uk-UA') * mod
+      case 'status': return a.status.localeCompare(b.status) * mod
+      case 'dueDate': return (new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()) * mod
+      case 'createdAt': return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * mod
+      default: return (a.order - b.order) * mod
+    }
+  })
 })
 
 // Кількість завдань по статусах
@@ -39,113 +83,13 @@ function getCountTasksByStatus(status: TaskStatus) {
   return tasksStore.tasks.filter((task) => task.status === status).length
 }
 
-// Групування завдань по колонках
-function getTasksByStatus(status: TaskStatus) {
-  return filteredTasks.value.filter((task) => task.status === status)
-}
-
-// Drag and Drop (Нативний HTML5)
-const draggedTaskId = ref<number | null>(null)
-const isDraggingOverColumn = ref<TaskStatus | null>(null)
-
-function handleDragStart(taskId: number) {
-  draggedTaskId.value = taskId
-}
-
-function handleDragOver(event: DragEvent, status: TaskStatus) {
-  event.preventDefault()
-  isDraggingOverColumn.value = status
-}
-
-function handleDragLeave() {
-  isDraggingOverColumn.value = null
-}
-
-async function handleDrop(targetStatus: TaskStatus) {
-  isDraggingOverColumn.value = null
-  if (draggedTaskId.value === null) return
-
-  const task = tasksStore.tasks.find((t) => t.id === draggedTaskId.value)
-  if (task && task.status !== targetStatus) {
-    task.status = targetStatus
-    await tasksStore.updateTask(task.id, task)
-    toast.success(`Завдання переміщено у "${columns.find((c) => c.id === targetStatus)?.title}"`)
-  }
-  draggedTaskId.value = null
-}
-
 // Модальне вікно створення завдання
 const isModalOpen = ref(false)
-const isSubmitting = ref(false)
+const creationStatus = ref(TaskStatus.TODO)
 
-const form = reactive({
-  title: '',
-  assignee: '',
-  status: TaskStatus.TODO,
-  dueDate: ''
-})
-
-const errors = reactive({
-  title: '',
-  dueDate: ''
-})
-
-function openModal(defaultStatus: TaskStatus = TaskStatus.TODO) {
-  form.title = ''
-  form.assignee = ''
-  form.status = defaultStatus
-  form.dueDate = ''
-  errors.title = ''
-  errors.dueDate = ''
+function openModal(status: TaskStatus) {
   isModalOpen.value = true
-}
-
-function closeModal() {
-  isModalOpen.value = false
-}
-
-// Отримуємо поточну дату у форматі YYYY-MM-DD
-const minDate = new Date().toISOString().split('T')[0] || ''
-
-async function handleCreateTask() {
-
-  errors.title = !form.title.trim() ? 'Вкажіть назву завдання' : ''
-  errors.dueDate = !form.dueDate ? 'Вкажіть термін виконання завдання' : ''
-
-  if (form.dueDate && form.dueDate < minDate) errors.dueDate = 'Дата не може бути в минулому'
-
-  if (errors.title || errors.dueDate) return;
-
-  isSubmitting.value = true
-
-  try {
-    await tasksStore.createTask({
-      projectId: props.id,
-      title: form.title.trim(),
-      assignee: form.assignee?.trim() || '',
-      status: form.status,
-      dueDate: form.dueDate
-    })
-
-    toast.success('Завдання додано!')
-    closeModal()
-  } catch {
-    toast.error('Не вдалося додати завдання')
-  } finally {
-    isSubmitting.value = false
-  }
-}
-
-async function handleDeleteTask(taskId: number, taskTitle: string) {
-  if (confirm(`Видалити завдання "${taskTitle}"?`)) {
-    await tasksStore.deleteTask(taskId)
-    toast.info('Завдання видалено')
-  }
-}
-
-// Захист по клавіші ESC
-function handleKeyDown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && isModalOpen.value) closeModal()
+  creationStatus.value = status
 }
 
 watch(
@@ -153,289 +97,200 @@ watch(
   async (newId) => await projectsStore.fetchProjectById(newId),
   { immediate: true }
 )
-
-onMounted(() => {
-  window.addEventListener('keydown', handleKeyDown)
-})
-onUnmounted(() => window.removeEventListener('keydown', handleKeyDown))
 </script>
 
 <template>
-  <div v-if="projectsStore.isLoading || tasksStore.isLoading" class="flex justify-center py-20">
-    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+  <!-- Якщо проєкт не знайдено -->
+  <div v-if="!projectsStore.isLoading && !projectsStore.currentProject" class="text-center py-20">
+    <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">Проєкт не знайдено</h2>
+    <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Можливо, він був видалений або посилання недійсне.</p>
+    <RouterLink
+      to="/"
+      class="inline-block mt-4 px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-medium hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors"
+    >
+      ← Повернутися до проєктів
+    </RouterLink>
   </div>
 
-  <template v-else>
-    <!-- Якщо проєкт не знайдено -->
-    <div v-if="!projectsStore.currentProject" class="text-center py-20">
-      <h2 class="text-xl font-bold text-slate-800">Проєкт не знайдено</h2>
-      <p class="text-slate-500 text-sm mt-1">Можливо, він був видалений або посилання недійсне.</p>
+  <!-- Деталі проєкту -->
+  <div v-else class="space-y-6">
+    <!-- Навігація та Заголовок -->
+    <div>
       <RouterLink
         to="/"
-        class="inline-block mt-4 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors"
+        class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors mb-2"
       >
-        ← Повернутися до проєктів
+        <span>←</span>
+        <span>Назад до списку проєктів</span>
       </RouterLink>
+
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <!-- Скелетон або Реальні дані Проєкту -->
+        <div v-if="projectsStore.isLoading" class="space-y-2 animate-pulse">
+          <div class="flex items-center gap-3">
+            <div class="h-8 w-64 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
+            <div class="h-5 w-20 bg-slate-200 dark:bg-slate-800 rounded-full"></div>
+          </div>
+          <div class="h-4 w-80 bg-slate-200 dark:bg-slate-800 rounded-md"></div>
+        </div>
+
+        <div v-else>
+          <div class="flex items-center gap-2.5">
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              {{ projectsStore.currentProject?.name }}
+            </h1>
+
+            <span
+              class="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full border transition-colors"
+              :class="projectsStore.currentProject?.status === ProjectStatus.ARCHIVED
+                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200/80 dark:border-amber-800/60'
+                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200/80 dark:border-emerald-800/60'"
+            >
+              {{ projectsStore.currentProject?.status === ProjectStatus.ARCHIVED ? 'В архіві' : 'Активний' }}
+            </span>
+          </div>
+
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            {{ projectsStore.currentProject?.description || 'Без опису' }}
+          </p>
+        </div>
+
+        <!-- Кнопка створення завдання (доступна одразу) -->
+        <button
+          @click="openModal(TaskStatus.TODO)"
+          :disabled="projectsStore.isLoading"
+          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-medium text-sm transition-colors shadow-xs cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span>+</span>
+          <span>Завдання</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Деталі проєкту та Kanban дошка -->
-    <div v-else class="space-y-6">
-      <!-- Навігація та Заголовок -->
-      <div>
-        <RouterLink
-          to="/"
-          class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-emerald-600 transition-colors mb-2"
-        >
-          <span>←</span>
-          <span>Назад до списку проєктів</span>
-        </RouterLink>
-
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div class="flex items-center gap-2.5">
-              <h1 class="text-2xl font-bold tracking-tight text-slate-900">
-                {{ projectsStore.currentProject.name }}
-              </h1>
-
-              <!-- Бейдж статусу -->
-              <span
-                class="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full border transition-colors"
-                :class="projectsStore.currentProject.status === ProjectStatus.ARCHIVED
-                  ? 'bg-amber-50 text-amber-700 border-amber-200/80'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'"
-              >
-                  {{ projectsStore.currentProject.status === ProjectStatus.ARCHIVED ? 'В архіві' : 'Активний' }}
-                </span>
-            </div>
-
-            <p class="text-sm text-slate-500 mt-0.5">
-              {{ projectsStore.currentProject.description || 'Без опису' }}
-            </p>
-          </div>
-
-          <!-- Кнопка створення завдання та пошук -->
-          <div class="flex items-center gap-3">
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Пошук завдань..."
-              class="px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-48 sm:w-64"
-            />
-
-            <button
-              @click="openModal(TaskStatus.TODO)"
-              class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm transition-colors shadow-xs cursor-pointer shrink-0"
-            >
-              <span>+</span>
-              <span>Завдання</span>
-            </button>
-          </div>
+    <!-- Прогрес виконання -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <template v-if="tasksStore.isLoading">
+        <div class="flex items-center gap-6 animate-pulse">
+          <div class="h-5 w-32 bg-slate-200 dark:bg-slate-800 rounded-md"></div>
+          <div class="h-5 w-28 bg-slate-200 dark:bg-slate-800 rounded-md"></div>
         </div>
-      </div>
+        <div class="flex items-center gap-3 w-full sm:w-64 animate-pulse">
+          <div class="flex-1 h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full"></div>
+          <div class="h-4 w-8 bg-slate-200 dark:bg-slate-800 rounded-md"></div>
+        </div>
+      </template>
 
-      <!-- Прогрес виконання -->
-      <div class="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <template v-else>
         <div class="flex items-center gap-4">
           <div class="text-sm">
-            <span class="text-slate-500">Всього завдань: </span>
-            <span class="font-bold text-slate-900">{{ tasksStore.tasks?.length || 0 }}</span>
+            <span class="text-slate-500 dark:text-slate-400">Всього завдань: </span>
+            <span class="font-bold text-slate-900 dark:text-white">{{ tasksStore.tasks?.length || 0 }}</span>
           </div>
           <div class="text-sm">
-            <span class="text-slate-500">Виконано: </span>
-            <span class="font-bold text-emerald-600">
-            {{ getCountTasksByStatus(TaskStatus.DONE) }}
-          </span>
+            <span class="text-slate-500 dark:text-slate-400">Виконано: </span>
+            <span class="font-bold text-emerald-600 dark:text-emerald-400">
+              {{ getCountTasksByStatus(TaskStatus.DONE) }}
+            </span>
           </div>
         </div>
 
-        <!-- Прогрес бар -->
         <div class="flex items-center gap-3 w-full sm:w-64">
-          <div class="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+          <div class="flex-1 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
             <div
-              class="h-full bg-emerald-500 transition-all duration-300"
+              class="h-full bg-emerald-500 dark:bg-emerald-400 transition-all duration-300"
               :style="{
-              width: `${tasksStore.tasks?.length ? (getCountTasksByStatus(TaskStatus.DONE) / tasksStore.tasks.length) * 100 : 0}%`
-            }"
+                width: `${tasksStore.tasks?.length ? (getCountTasksByStatus(TaskStatus.DONE) / tasksStore.tasks.length) * 100 : 0}%`
+              }"
             ></div>
           </div>
-          <span class="text-xs font-semibold text-slate-600 min-w-[2.5rem] text-right">
-          {{ tasksStore.tasks?.length ? Math.round((getCountTasksByStatus(TaskStatus.DONE) / tasksStore.tasks.length) * 100) : 0 }}%
-        </span>
+          <span class="text-xs font-semibold text-slate-600 dark:text-slate-300 min-w-[2.5rem] text-right">
+            {{ tasksStore.tasks?.length ? Math.round((getCountTasksByStatus(TaskStatus.DONE) / tasksStore.tasks.length) * 100) : 0 }}%
+          </span>
         </div>
-      </div>
-
-      <!-- KANBAN ДОШКА -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-        <div
-          v-for="col in columns"
-          :key="col.id"
-          class="bg-slate-100/70 border-t-4 rounded-2xl p-4 flex flex-col min-h-[500px] transition-colors"
-          :class="[
-          col.color,
-          isDraggingOverColumn === col.id ? 'bg-emerald-50/60 ring-2 ring-emerald-400 ring-dashed' : ''
-        ]"
-          @dragover="handleDragOver($event, col.id)"
-          @dragleave="handleDragLeave"
-          @drop="handleDrop(col.id)"
-        >
-          <!-- Шапка колонки -->
-          <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-2">
-              <h2 class="font-semibold text-slate-800 text-sm">{{ col.title }}</h2>
-              <span class="px-2 py-0.5 rounded-full text-xs font-bold" :class="col.badgeBg">
-              {{ searchQuery ? `${getTasksByStatus(col.id).length}/${getCountTasksByStatus(col.id)}` : getTasksByStatus(col.id).length }}
-            </span>
-            </div>
-
-            <button
-              @click="openModal(col.id)"
-              class="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-200/60 transition-colors text-sm cursor-pointer"
-              title="Додати завдання в цю колонку"
-            >
-              +
-            </button>
-          </div>
-
-          <!-- Список карток у колонці -->
-          <div class="space-y-3 flex-1">
-            <div
-              v-for="task in getTasksByStatus(col.id)"
-              :key="task.id"
-              draggable="true"
-              @dragstart="handleDragStart(task.id)"
-              class="group bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs hover:shadow-md transition-all cursor-grab active:cursor-grabbing relative"
-            >
-              <!-- Кнопка видалення -->
-              <div class="flex items-center justify-between mb-2">
-                <h3 class="font-medium text-slate-900 text-sm leading-snug">
-                  {{ task.title }}
-                </h3>
-
-                <button
-                  @click="handleDeleteTask(task.id, task.title)"
-                  class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 p-1 transition-opacity cursor-pointer"
-                  title="Видалити завдання"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <p v-if="task.assignee" class="text-xs text-slate-500 mb-2 line-clamp-2">
-                Виконавець: {{ task.assignee }}
-              </p>
-
-              <p v-if="task.dueDate" class="text-xs text-slate-500 line-clamp-2">
-                Термін виконання: {{ task.dueDate }}
-              </p>
-            </div>
-
-            <!-- Заглушка, якщо колонка порожня -->
-            <div
-              v-if="getTasksByStatus(col.id).length === 0"
-              class="h-24 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-xs text-slate-400"
-            >
-              Перетягніть завдання сюди
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Модальне вікно створення завдання -->
-      <div
-        v-if="isModalOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
-        @click.self="closeModal"
-      >
-        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5">
-          <div class="flex items-center justify-between">
-            <h3 class="text-lg font-bold text-slate-900">Нове завдання</h3>
-            <button @click="closeModal" class="text-slate-400 hover:text-slate-600 p-1">✕</button>
-          </div>
-
-          <form @submit.prevent="handleCreateTask" class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1">
-                Назва <span class="text-rose-500">*</span>
-              </label>
-              <input
-                v-model="form.title"
-                type="text"
-                placeholder="Наприклад: Зверстати верстку шапки"
-                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                :class="{ 'border-rose-400 bg-rose-50/30': errors.title }"
-              />
-              <p v-if="errors.title" class="text-xs text-rose-500 mt-1">{{ errors.title }}</p>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-slate-700 mb-1">
-                Виконавець
-              </label>
-              <input
-                v-model="form.assignee"
-                type="text"
-                list="assignees-list"
-                placeholder="Наприклад: Олександр Поліщук"
-                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              />
-
-              <!-- Список підказок з гетера taskStore -->
-              <datalist id="assignees-list">
-                <option
-                  v-for="name in tasksStore.availableAssignees"
-                  :key="name"
-                  :value="name"
-                />
-              </datalist>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">
-                  Термін виконання <span class="text-rose-500">*</span>
-                </label>
-                <input
-                  v-model="form.dueDate"
-                  type="date"
-                  :min="minDate"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
-                  :class="{ 'border-rose-400 bg-rose-50/30': errors.dueDate }"
-                />
-                <p v-if="errors.dueDate" class="text-xs text-rose-500 mt-1">{{ errors.dueDate }}</p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">Колонка</label>
-                <select
-                  v-model="form.status"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="todo">До виконання</option>
-                  <option value="in_progress">В роботі</option>
-                  <option value="done">Виконано</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="flex justify-end gap-3 pt-3">
-              <button
-                type="button"
-                @click="closeModal"
-                class="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100"
-              >
-                Скасувати
-              </button>
-              <button
-                type="submit"
-                :disabled="isSubmitting"
-                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium shadow-xs disabled:opacity-50 cursor-pointer"
-              >
-                {{ isSubmitting ? 'Збереження...' : 'Додати' }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+      </template>
     </div>
-  </template>
+
+    <!-- Панель керування: Пошук, Фільтри, Сортування, Перемикач виглядів -->
+    <div class="flex flex-col sm:flex-row sm:items-center gap-3 mt-6">
+      <!-- Пошук -->
+      <div class="relative w-full sm:w-auto sm:flex-1 max-w-md">
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Пошук завдань..."
+          class="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+        />
+      </div>
+
+      <!-- Фільтр за статусом -->
+      <select
+        v-model="statusFilter"
+        class="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+      >
+        <option value="all">Всі статуси</option>
+        <option :value="TaskStatus.TODO">До виконання</option>
+        <option :value="TaskStatus.IN_PROGRESS">В роботі</option>
+        <option :value="TaskStatus.DONE">Виконано</option>
+      </select>
+
+      <!-- Фільтр за виконавцем -->
+      <select
+        v-model="assigneeFilter"
+        class="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+      >
+        <option value="all">Всі виконавці</option>
+        <option v-for="assignee in tasksStore.availableAssignees" :key="assignee" :value="assignee">
+          {{ assignee }}
+        </option>
+      </select>
+
+      <!-- Сортування (Поле + Напрямок) -->
+      <div class="flex items-center gap-2 w-full sm:w-auto">
+        <select
+          v-model="sortBy"
+          class="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+        >
+          <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+
+        <button
+          type="button"
+          @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
+          class="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0 font-medium"
+          :title="sortOrder === 'asc' ? 'За зростанням' : 'За спаданням'"
+        >
+          {{ sortOrder === 'asc' ? '↑' : '↓' }}
+        </button>
+      </div>
+
+      <!-- Перемикач режиму відображення -->
+      <ViewModeToggle
+        v-model="viewMode"
+        :options="taskViewOptions"
+        class="sm:ml-auto"
+      />
+    </div>
+
+    <Transition name="fade-slide" mode="out-in">
+      <KeepAlive key="content">
+        <component
+          :is="currentViewComponent"
+          :is-loading="tasksStore.isLoading"
+          :tasks="filteredTasks"
+          :search-query="searchQuery"
+          :sort-by="sortBy"
+          :sort-order="sortOrder"
+          @sort="handleSort"
+          @openModal="openModal"
+        />
+      </KeepAlive>
+    </Transition>
+
+    <!-- Модальне вікно створення завдання -->
+    <TaskCreateModal
+      v-model:is-open="isModalOpen"
+      :project-id="id"
+      :creation-status="creationStatus"
+    />
+  </div>
 </template>

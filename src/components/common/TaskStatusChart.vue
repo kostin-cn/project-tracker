@@ -38,11 +38,11 @@ const strokeDasharray = computed(() => {
 </script>
 
 <template>
-  <div class="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
-    <h3 class="text-base font-semibold text-slate-900 mb-4">Розподіл завдань</h3>
+  <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs transition-colors duration-200">
+    <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-4">Розподіл завдань</h3>
 
     <!-- Якщо немає завдань -->
-    <div v-if="stats.total === 0" class="text-center py-8 text-sm text-slate-400">
+    <div v-if="stats.total === 0" class="text-center py-8 text-sm text-slate-400 dark:text-slate-500">
       Немає завдань для відображення статистики
     </div>
 
@@ -51,40 +51,44 @@ const strokeDasharray = computed(() => {
       <div class="relative w-36 h-36 shrink-0 flex items-center justify-center">
         <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
           <!-- Фон круга -->
-          <circle cx="50" cy="50" r="40" stroke="#f1f5f9" stroke-width="12" fill="none" />
-
-          <!-- Сегмент TODO (Amber/Slate) -->
           <circle
             cx="50" cy="50" r="40"
-            stroke="#94a3b8" stroke-width="12" fill="none"
+            stroke-width="12" fill="none"
+            class="stroke-slate-100 dark:stroke-slate-800"
+          />
+
+          <!-- Сегмент TODO (Slate) -->
+          <circle
+            cx="50" cy="50" r="40"
+            stroke-width="12" fill="none"
             :stroke-dasharray="`${strokeDasharray.todoLen} ${strokeDasharray.circumference}`"
             :stroke-dashoffset="-strokeDasharray.doneLen - strokeDasharray.inProgressLen"
-            class="transition-all duration-500"
+            class="stroke-slate-400 dark:stroke-slate-500 transition-all duration-500"
           />
 
           <!-- Сегмент IN_PROGRESS (Blue) -->
           <circle
             cx="50" cy="50" r="40"
-            stroke="#3b82f6" stroke-width="12" fill="none"
+            stroke-width="12" fill="none"
             :stroke-dasharray="`${strokeDasharray.inProgressLen} ${strokeDasharray.circumference}`"
             :stroke-dashoffset="-strokeDasharray.doneLen"
-            class="transition-all duration-500"
+            class="stroke-blue-500 dark:stroke-blue-400 transition-all duration-500"
           />
 
           <!-- Сегмент DONE (Emerald) -->
           <circle
             cx="50" cy="50" r="40"
-            stroke="#10b981" stroke-width="12" fill="none"
+            stroke-width="12" fill="none"
             :stroke-dasharray="`${strokeDasharray.doneLen} ${strokeDasharray.circumference}`"
             stroke-dashoffset="0"
-            class="transition-all duration-500"
+            class="stroke-emerald-500 dark:stroke-emerald-400 transition-all duration-500"
           />
         </svg>
 
         <!-- Текст у центрі -->
         <div class="absolute text-center">
-          <span class="block text-2xl font-bold text-slate-900 leading-none">{{ stats.total }}</span>
-          <span class="text-[11px] text-slate-400 font-medium">Всього</span>
+          <span class="block text-2xl font-bold text-slate-900 dark:text-white leading-none">{{ stats.total }}</span>
+          <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium">Всього</span>
         </div>
       </div>
 
@@ -93,33 +97,33 @@ const strokeDasharray = computed(() => {
         <!-- Виконано -->
         <div class="flex items-center justify-between text-sm">
           <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-            <span class="text-slate-600">Виконано</span>
+            <span class="w-3 h-3 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
+            <span class="text-slate-600 dark:text-slate-400">Виконано</span>
           </div>
-          <div class="font-semibold text-slate-900">
-            {{ stats.done.count }} <span class="text-xs text-slate-400 font-normal">({{ stats.done.percent }}%)</span>
+          <div class="font-semibold text-slate-900 dark:text-white">
+            {{ stats.done.count }} <span class="text-xs text-slate-400 dark:text-slate-500 font-normal">({{ stats.done.percent }}%)</span>
           </div>
         </div>
 
         <!-- В роботі -->
         <div class="flex items-center justify-between text-sm">
           <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-blue-500"></span>
-            <span class="text-slate-600">В роботі</span>
+            <span class="w-3 h-3 rounded-full bg-blue-500 dark:bg-blue-400"></span>
+            <span class="text-slate-600 dark:text-slate-400">В роботі</span>
           </div>
-          <div class="font-semibold text-slate-900">
-            {{ stats.inProgress.count }} <span class="text-xs text-slate-400 font-normal">({{ stats.inProgress.percent }}%)</span>
+          <div class="font-semibold text-slate-900 dark:text-white">
+            {{ stats.inProgress.count }} <span class="text-xs text-slate-400 dark:text-slate-500 font-normal">({{ stats.inProgress.percent }}%)</span>
           </div>
         </div>
 
         <!-- До виконання -->
         <div class="flex items-center justify-between text-sm">
           <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-slate-400"></span>
-            <span class="text-slate-600">До виконання</span>
+            <span class="w-3 h-3 rounded-full bg-slate-400 dark:bg-slate-500"></span>
+            <span class="text-slate-600 dark:text-slate-400">До виконання</span>
           </div>
-          <div class="font-semibold text-slate-900">
-            {{ stats.todo.count }} <span class="text-xs text-slate-400 font-normal">({{ stats.todo.percent }}%)</span>
+          <div class="font-semibold text-slate-900 dark:text-white">
+            {{ stats.todo.count }} <span class="text-xs text-slate-400 dark:text-slate-500 font-normal">({{ stats.todo.percent }}%)</span>
           </div>
         </div>
       </div>

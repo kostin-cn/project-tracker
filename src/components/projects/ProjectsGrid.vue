@@ -1,48 +1,14 @@
 <script setup lang="ts">
 import {ProjectStatus, type ProjectWithTaskCount} from "@/types";
 import {RouterLink} from "vue-router";
-import {useProjectStore} from "@/stores/projects.ts";
-import { toast } from 'vue-sonner'
+import { formatDate } from '@/utils/formatters'
+import { useProjectActions } from '@/composables/useProjectActions'
 
 defineProps<{
   projects: ProjectWithTaskCount[]
 }>()
 
-const projectsStore = useProjectStore()
-
-function formatDate(dateValue?: string | number | Date): string {
-  if (!dateValue) return 'нещодавно'
-
-  return new Date(dateValue).toLocaleDateString('uk-UA', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  })
-}
-
-// Хендлер архівування/відновлення проєкту
-async function handleToggleStatus(projectId: number, currentStatus: ProjectStatus) {
-  const newStatus = currentStatus === ProjectStatus.ACTIVE
-    ? ProjectStatus.ARCHIVED
-    : ProjectStatus.ACTIVE
-
-  await projectsStore.updateProject(projectId, { status: newStatus })
-
-  const statusMessage = newStatus === ProjectStatus.ARCHIVED
-    ? 'Проєкт перенесено в архів'
-    : 'Проєкт відновлено з архіву'
-
-  toast.success(statusMessage)
-}
-
-// Хендлер видалення проєкту
-async function handleDelete(id: number, title: string) {
-  if (confirm(`Ви дійсно хочете видалити проєкт "${title}"?`)) {
-    await projectsStore.deleteProject(id)
-    toast.info('Проєкт видалено')
-  }
-}
-
+const { toggleStatus, deleteProject } = useProjectActions()
 </script>
 
 <template>
@@ -50,14 +16,14 @@ async function handleDelete(id: number, title: string) {
     <article
       v-for="project in projects"
       :key="project.id"
-      class="group relative bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs hover:shadow-md hover:border-slate-300 transition-all flex flex-col justify-between"
-      :class="{ 'opacity-75 bg-slate-50/50 border-dashed': project.status === ProjectStatus.ARCHIVED }"
+      class="group relative bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between"
+      :class="{ 'opacity-75 bg-slate-50/50 dark:bg-slate-900/40 border-dashed': project.status === ProjectStatus.ARCHIVED }"
     >
       <div>
         <!-- Шапка картки: Назва + Бейдж + Кнопки дій -->
         <div class="flex items-start justify-between gap-3 mb-3">
           <div class="flex items-center gap-2.5 min-w-0">
-            <h2 class="text-lg font-semibold text-slate-900 group-hover:text-emerald-600 transition-colors line-clamp-1">
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-1">
               {{ project.name }}
             </h2>
 
@@ -65,11 +31,11 @@ async function handleDelete(id: number, title: string) {
             <span
               class="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full border transition-colors"
               :class="project.status === ProjectStatus.ARCHIVED
-                  ? 'bg-amber-50 text-amber-700 border-amber-200/80'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200/80'"
+                  ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200/80 dark:border-amber-800/60'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200/80 dark:border-emerald-800/60'"
             >
-                  {{ project.status === ProjectStatus.ARCHIVED ? 'В архіві' : 'Активний' }}
-                </span>
+              {{ project.status === ProjectStatus.ARCHIVED ? 'В архіві' : 'Активний' }}
+            </span>
           </div>
 
           <!-- Блок кнопок дій (з'являється при ховері) -->
@@ -77,8 +43,8 @@ async function handleDelete(id: number, title: string) {
             <!-- Кнопка зміни статусу (Архівувати / Розархівувати) -->
             <button
               type="button"
-              @click.prevent="handleToggleStatus(project.id, project.status)"
-              class="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all cursor-pointer"
+              @click.prevent="toggleStatus(project.id, project.status)"
+              class="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition-all cursor-pointer"
               :title="project.status === ProjectStatus.ARCHIVED ? 'Розархівувати проєкт' : 'Архівувати проєкт'"
             >
               <!-- Іконка архіву / повернення -->
@@ -93,8 +59,8 @@ async function handleDelete(id: number, title: string) {
             <!-- Кнопка видалення -->
             <button
               type="button"
-              @click.prevent="handleDelete(project.id, project.name)"
-              class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+              @click.prevent="deleteProject(project.id, project.name)"
+              class="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-all cursor-pointer"
               title="Видалити проєкт"
             >
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -104,12 +70,12 @@ async function handleDelete(id: number, title: string) {
           </div>
         </div>
 
-        <p class="text-sm text-slate-600 line-clamp-2 min-h-10 mb-3">
+        <p class="text-sm text-slate-600 dark:text-slate-400 line-clamp-2 min-h-10 mb-3">
           {{ project.description || 'Опис відсутній...' }}
         </p>
 
         <!-- Дата створення проєкту -->
-        <div class="flex items-center gap-1.5 text-xs text-slate-400 mb-6">
+        <div class="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 mb-6">
           <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 002-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
@@ -120,24 +86,24 @@ async function handleDelete(id: number, title: string) {
       <div>
         <!-- Статистика / Прогрес -->
         <div class="space-y-2 mb-4">
-          <div class="flex justify-between text-xs font-medium text-slate-500">
+          <div class="flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
             <span>Завдання</span>
             <span>{{ project.doneTasksCount || 0 }} / {{ project.tasksCount || 0 }}</span>
           </div>
 
-          <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div class="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
             <div
-              class="h-full bg-emerald-500 transition-all duration-300"
+              class="h-full bg-emerald-500 dark:bg-emerald-400 transition-all duration-300"
               :style="{
-            width: `${project.tasksCount ? ((project.doneTasksCount || 0) / project.tasksCount) * 100 : 0}%`
-          }"
+                width: `${project.tasksCount ? ((project.doneTasksCount || 0) / project.tasksCount) * 100 : 0}%`
+              }"
             ></div>
           </div>
         </div>
 
         <RouterLink
           :to="{ name: 'project-detail', params: { id: project.id } }"
-          class="mt-2 w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-medium text-sm transition-colors cursor-pointer"
+          class="mt-2 w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400 font-medium text-sm transition-colors cursor-pointer"
         >
           <span>Відкрити дошку</span>
           <span>→</span>

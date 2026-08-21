@@ -1,13 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
+<html lang="uk" class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+<head>
     <meta charset="UTF-8">
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project tracker</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+
+    <!-- Прибираємо спалах: перевіряємо тему ДО рендеру сторінки -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
+                document.documentElement.classList.add('dark');
+                document.documentElement.style.backgroundColor = '#020617'; // slate-950
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.style.backgroundColor = '#f8fafc'; // slate-50
+            }
+        })();
+    </script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen antialiased">
+<div id="app"></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
 </html>

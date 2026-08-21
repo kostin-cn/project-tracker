@@ -68,7 +68,7 @@ const mockAdapter: AxiosAdapter = async <T>(config: InternalAxiosRequestConfig):
 
     case 'post':
       const newId = Date.now();
-      const jsonData = JSON.parse(data) as T;
+      const jsonData = JSON.parse(data);
       mockData[resource as keyof MockData][newId] = { ...jsonData, id: newId, status: jsonData.status || DEFAULT_STATUSES[resource as keyof MockData], createdAt: new Date().toISOString() };
       saveData(mockData);
       return {
