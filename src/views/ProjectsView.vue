@@ -3,7 +3,7 @@
 import { computed, ref } from 'vue'
 
 // Types & Interfaces
-import { ProjectStatus, type ProjectWithTaskCount } from '@/types'
+import type { ProjectWithTaskCount } from '@/types'
 
 // Stores
 import { useProjectStore } from '@/stores/projects'
@@ -136,7 +136,7 @@ function resetFilters() {
           v-model="sortBy"
           class="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
         >
-          <option v-for="opt in sortOptions" :value="opt.value">{{ opt.label }}</option>
+          <option v-for="opt in sortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
 
         <button

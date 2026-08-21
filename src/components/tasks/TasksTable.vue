@@ -4,7 +4,7 @@ import {formatDate} from '@/utils/formatters'
 import {useColumnResize} from '@/composables/useColumnResize'
 import {useTaskActions} from "@/composables/useTaskActions.ts";
 
-const props = defineProps<{
+defineProps<{
   isLoading: boolean
   tasks: Task[]
   searchQuery?: string
@@ -12,7 +12,7 @@ const props = defineProps<{
   sortOrder?: 'asc' | 'desc'
 }>()
 
-const { updateTask, deleteTask } = useTaskActions()
+const { deleteTask } = useTaskActions()
 
 const emit = defineEmits<{
   (e: 'sort', field: string): void

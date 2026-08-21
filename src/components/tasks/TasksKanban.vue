@@ -107,7 +107,7 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
     if (task.status !== targetStatus || task.order !== newOrder) {
       task.status = targetStatus
       task.order = newOrder
-      // await updateTask(task.id, { ...task, status: targetStatus, order: newOrder })
+      await updateTask(task.id, { ...task, status: targetStatus, order: newOrder })
       console.log({ ...task, status: targetStatus, order: newOrder })
     }
   }

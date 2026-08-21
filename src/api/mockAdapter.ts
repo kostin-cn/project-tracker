@@ -76,10 +76,10 @@ const mockAdapter: AxiosAdapter = async <T>(config: InternalAxiosRequestConfig):
       // Обчислюємо order тільки для задач, якщо він не був переданий явно
       if (resKey === 'tasks' && order === undefined) {
         const itemsInSameStatus = Object.values(mockData[resKey] || {}).filter(
-          (item: any) => (item?.status === status) && (item?.projectId === jsonData.projectId)
+          (item: Task) => (item?.status === status) && (item?.projectId === jsonData.projectId)
         );
         const maxOrder = itemsInSameStatus.reduce(
-          (max: number, item: any) => Math.max(max, item?.order ?? 0),
+          (max: number, item: Task) => Math.max(max, item?.order ?? 0),
           0
         );
         order = maxOrder + 1;
