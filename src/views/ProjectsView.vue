@@ -84,6 +84,10 @@ function resetFilters() {
   searchQuery.value = ''
   statusFilter.value = 'all'
 }
+
+// Завантаження ДЕМО даних
+import { useDemoData } from '@/composables/useDemoData'
+const { isSeeding, loadDemoData } = useDemoData()
 </script>
 
 <template>
@@ -164,21 +168,37 @@ function resetFilters() {
       <div
         v-else-if="projectsStore.projects.length === 0"
         key="empty-global"
-        class="text-center py-16 px-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-white/50 dark:bg-slate-900/50"
+        class="text-center py-12 px-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-white/50 dark:bg-slate-900/50"
       >
-        <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3">
-          📂
+        <div class="w-12 h-12 mx-auto rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/60 flex items-center justify-center text-amber-500 mb-3">
+          ⚡
         </div>
+
         <h3 class="text-base font-semibold text-slate-900 dark:text-white">Немає активних проєктів</h3>
-        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-          Створіть свій перший проєкт, щоб почати додавати завдання та Kanban-дошки.
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+          Створіть свій перший проєкт або завантажте готові тестові дані, щоб одразу випробувати весь функціонал Kanban-дошки.
         </p>
-        <button
-          @click="isModalOpen = true"
-          class="mt-4 text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 dark:hover:text-emerald-300 cursor-pointer"
-        >
-          + Створити проєкт зараз
-        </button>
+
+        <div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <!-- Кнопка завантаження ДЕМО -->
+          <button
+            type="button"
+            @click="loadDemoData"
+            :disabled="isSeeding"
+            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 dark:bg-amber-600 dark:hover:bg-amber-500 text-white text-sm font-medium transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+          >
+            <span>⚡ Завантажити тестові дані</span>
+          </button>
+
+          <!-- Кнопка створення проєкту -->
+          <button
+            type="button"
+            @click="isModalOpen = true"
+            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900 text-sm font-medium transition-colors cursor-pointer"
+          >
+            <span>+ Створити проєкт</span>
+          </button>
+        </div>
       </div>
 
       <!-- Порожній стан: Фільтри або пошук не дали результатів -->

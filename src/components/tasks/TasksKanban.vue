@@ -95,24 +95,17 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
     toast.success(`Завдання переміщено у "${colTitle}"`)
   }
 
-  console.log('start')
-
   // Синхронізуємо `order` та `status` для всіх елементів колонки, де відбулися зміни
   const currentTasks = columnTasks[targetStatus]
-  console.log('currentTasks', currentTasks)
   for (const [i, task] of currentTasks.entries()) {
-    console.log(`task: ${i} ${task.title}`)
     const newOrder = i + 1
 
     if (task.status !== targetStatus || task.order !== newOrder) {
       task.status = targetStatus
       task.order = newOrder
       await updateTask(task.id, { ...task, status: targetStatus, order: newOrder })
-      console.log({ ...task, status: targetStatus, order: newOrder })
     }
   }
-
-  console.log('done')
 }
 </script>
 

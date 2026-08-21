@@ -24,7 +24,7 @@ const saveData = (data: MockData): void => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 };
 
-const mockData: MockData = loadData();
+let mockData: MockData = loadData();
 
 const mockAdapter: AxiosAdapter = async <T>(config: InternalAxiosRequestConfig): Promise<AxiosResponse<T>> => {
   const { method, url, data } = config;
@@ -147,3 +147,7 @@ const mockAdapter: AxiosAdapter = async <T>(config: InternalAxiosRequestConfig):
 };
 
 export default mockAdapter;
+
+export const reloadMockData = (): void => {
+  mockData = loadData();
+};
