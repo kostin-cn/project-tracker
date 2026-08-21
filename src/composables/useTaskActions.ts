@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import {type CreateTaskInput, type Task, TaskStatus} from '@/types'
+import {type CreateTaskInput, type Task} from '@/types'
 import { useTaskStore } from '@/stores/tasks'
 import { toast } from 'vue-sonner'
 
