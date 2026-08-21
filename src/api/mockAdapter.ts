@@ -69,10 +69,34 @@ const mockAdapter: AxiosAdapter = async <T>(config: InternalAxiosRequestConfig):
     case 'post':
       const newId = Date.now();
       const jsonData = JSON.parse(data);
-      mockData[resource as keyof MockData][newId] = { ...jsonData, id: newId, status: jsonData.status || DEFAULT_STATUSES[resource as keyof MockData], createdAt: new Date().toISOString() };
+      const resKey = resource as keyof MockData;
+      const status = jsonData.status || DEFAULT_STATUSES[resKey];
+      let order: number | undefined = jsonData.order;
+
+      // Обчислюємо order тільки для задач, якщо він не був переданий явно
+      if (resKey === 'tasks' && order === undefined) {
+        const itemsInSameStatus = Object.values(mockData[resKey] || {}).filter(
+          (item: any) => (item?.status === status) && (item?.projectId === jsonData.projectId)
+        );
+        const maxOrder = itemsInSameStatus.reduce(
+          (max: number, item: any) => Math.max(max, item?.order ?? 0),
+          0
+        );
+        order = maxOrder + 1;
+      }
+
+      const newItem = {
+        ...jsonData,
+        id: newId,
+        status,
+        ...(order !== undefined ? { order } : {}),
+        createdAt: new Date().toISOString(),
+      };
+
+      mockData[resKey][newId] = newItem;
       saveData(mockData);
       return {
-        data: mockData[resource as keyof MockData][newId] as T,
+        data: mockData[resKey][newId] as T,
         status: 201,
         statusText: 'Created',
         headers: {},

@@ -10,7 +10,6 @@ import ViewModeToggle, { type ToggleOption } from '@/components/common/ViewModeT
 import TasksKanban from "@/components/tasks/TasksKanban.vue";
 import TasksTable from "@/components/tasks/TasksTable.vue";
 import { useTableSort } from '@/composables/useTableSort'
-import AppSpinner from '@/components/common/AppSpinner.vue'
 
 // Отримуємо id проекту з пропсів роутера (автоматично конвертований у number)
 const props = defineProps<{
