@@ -13,7 +13,6 @@ import { useLocalStorageRef } from '@/composables/useLocalStorageRef'
 import { useTableSort } from '@/composables/useTableSort'
 
 // Common UI Components
-import AppSpinner from '@/components/common/AppSpinner.vue'
 import TaskStatusChart from '@/components/common/TaskStatusChart.vue'
 import ViewModeToggle, { type ToggleOption } from '@/components/common/ViewModeToggle.vue'
 
@@ -162,11 +161,10 @@ const { isSeeding, loadDemoData } = useDemoData()
     </div>
 
     <Transition name="fade-slide" mode="out-in">
-      <AppSpinner v-if="projectsStore.isLoading" key="loading" />
 
       <!-- Порожній стан (Empty State) -->
       <div
-        v-else-if="projectsStore.projects.length === 0"
+        v-if="!projectsStore.isLoading && projectsStore.projects.length === 0"
         key="empty-global"
         class="text-center py-12 px-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-white/50 dark:bg-slate-900/50"
       >
@@ -203,7 +201,7 @@ const { isSeeding, loadDemoData } = useDemoData()
 
       <!-- Порожній стан: Фільтри або пошук не дали результатів -->
       <div
-        v-else-if="filteredProjects.length === 0"
+        v-else-if="!projectsStore.isLoading && filteredProjects.length === 0"
         key="empty-filtered"
         class="text-center py-16 px-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-white/50 dark:bg-slate-900/50"
       >
@@ -225,6 +223,7 @@ const { isSeeding, loadDemoData } = useDemoData()
       <KeepAlive v-else key="content">
         <component
           :is="currentViewComponent"
+          :is-loading="projectsStore.isLoading"
           :projects="filteredProjects"
           :sort-by="sortBy"
           :sort-order="sortOrder"

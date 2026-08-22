@@ -133,78 +133,114 @@ const getStatusLabel = (status: TaskStatus) => {
         </thead>
 
         <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-sm">
-        <tr
-          v-for="task in tasks"
-          :key="task.id"
-          class="group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-        >
-          <!-- Назва завдання -->
+        <!-- СТАН ЗАВАНТАЖЕННЯ (Скелетон) -->
+        <tr v-if="isLoading" class="animate-pulse">
+          <!-- Назва -->
           <td class="px-5 py-4 min-w-0">
-              <span class="font-medium text-slate-900 dark:text-slate-100 truncate block">
-                {{ task.title }}
-              </span>
+            <div class="h-4 bg-slate-200 dark:bg-slate-800 rounded-md w-3/4"></div>
           </td>
-
           <!-- Статус -->
           <td class="px-5 py-4 whitespace-nowrap">
-              <span
-                class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border transition-colors"
-                :class="getStatusBadgeClass(task.status)"
-              >
-                {{ getStatusLabel(task.status) }}
-              </span>
+            <div class="h-5 bg-slate-200 dark:bg-slate-800 rounded-full w-20"></div>
           </td>
-
           <!-- Термін виконання -->
-          <td class="px-5 py-4 whitespace-nowrap text-xs">
-              <span
-                v-if="task.dueDate"
-                class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md font-medium border bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700"
-              >
-                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {{ formatDate(task.dueDate) }}
-              </span>
-            <span v-else class="text-slate-400 dark:text-slate-500 italic">—</span>
+          <td class="px-5 py-4 whitespace-nowrap">
+            <div class="h-6 bg-slate-200 dark:bg-slate-800 rounded-md w-24"></div>
           </td>
-
           <!-- Виконавець -->
           <td class="px-5 py-4 whitespace-nowrap">
-            <div v-if="task.assignee" class="flex items-center gap-2" :title="`Виконавець: ${task.assignee}`">
-              <div class="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold flex items-center justify-center uppercase shrink-0">
-                {{ task.assignee.slice(0, 2) }}
-              </div>
-              <span class="text-xs text-slate-700 dark:text-slate-300 truncate">{{ task.assignee }}</span>
+            <div class="flex items-center gap-2">
+              <div class="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0"></div>
+              <div class="h-3.5 bg-slate-200 dark:bg-slate-800 rounded w-20"></div>
             </div>
-            <span v-else class="text-xs text-slate-400 dark:text-slate-500 italic">Не призначено</span>
           </td>
-
-          <!-- Дата створення -->
-          <td class="px-5 py-4 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
-            {{ formatDate(task.createdAt) }}
+          <!-- Створено -->
+          <td class="px-5 py-4 whitespace-nowrap">
+            <div class="h-3.5 bg-slate-200 dark:bg-slate-800 rounded w-16"></div>
           </td>
-
           <!-- Дії -->
           <td class="px-5 py-4 whitespace-nowrap text-right">
-            <div class="flex items-center justify-end gap-1">
-              <!-- Видалити -->
-              <button
-                type="button"
-                @click.prevent="deleteTask(task.id, task.title)"
-                class="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-all cursor-pointer"
-                title="Видалити завдання"
-              >
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
+            <div class="flex items-center justify-end">
+              <div class="w-7 h-7 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
             </div>
           </td>
         </tr>
 
-        <!-- Порожній стан -->
-        <tr v-if="!tasks || tasks.length === 0">
+        <!-- СТАН З ДАНИМИ -->
+        <template v-else-if="tasks && tasks.length > 0">
+          <tr
+            v-for="task in tasks"
+            :key="task.id"
+            class="group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+          >
+            <!-- Назва завдання -->
+            <td class="px-5 py-4 min-w-0">
+                <span class="font-medium text-slate-900 dark:text-slate-100 truncate block">
+                  {{ task.title }}
+                </span>
+            </td>
+
+            <!-- Статус -->
+            <td class="px-5 py-4 whitespace-nowrap">
+                <span
+                  class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border transition-colors"
+                  :class="getStatusBadgeClass(task.status)"
+                >
+                  {{ getStatusLabel(task.status) }}
+                </span>
+            </td>
+
+            <!-- Термін виконання -->
+            <td class="px-5 py-4 whitespace-nowrap text-xs">
+                <span
+                  v-if="task.dueDate"
+                  class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md font-medium border bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700"
+                >
+                  <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {{ formatDate(task.dueDate) }}
+                </span>
+              <span v-else class="text-slate-400 dark:text-slate-500 italic">—</span>
+            </td>
+
+            <!-- Виконавець -->
+            <td class="px-5 py-4 whitespace-nowrap">
+              <div v-if="task.assignee" class="flex items-center gap-2" :title="`Виконавець: ${task.assignee}`">
+                <div class="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold flex items-center justify-center uppercase shrink-0">
+                  {{ task.assignee.slice(0, 2) }}
+                </div>
+                <span class="text-xs text-slate-700 dark:text-slate-300 truncate">{{ task.assignee }}</span>
+              </div>
+              <span v-else class="text-xs text-slate-400 dark:text-slate-500 italic">Не призначено</span>
+            </td>
+
+            <!-- Дата створення -->
+            <td class="px-5 py-4 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+              {{ formatDate(task.createdAt) }}
+            </td>
+
+            <!-- Дії -->
+            <td class="px-5 py-4 whitespace-nowrap text-right">
+              <div class="flex items-center justify-end gap-1">
+                <!-- Видалити -->
+                <button
+                  type="button"
+                  @click.prevent="deleteTask(task.id, task.title)"
+                  class="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-all cursor-pointer"
+                  title="Видалити завдання"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </template>
+
+        <!-- ПОРОЖНІЙ СТАН -->
+        <tr v-else>
           <td colspan="6" class="px-5 py-8 text-center text-xs text-slate-400 dark:text-slate-500">
             Завдань не знайдено
           </td>

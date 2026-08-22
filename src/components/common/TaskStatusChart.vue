@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTaskStore } from '@/stores/tasks'
-import { TaskStatus } from '@/types' // твій Enum статусів
+import { TaskStatus } from '@/types'
 
 const tasksStore = useTaskStore()
 
@@ -41,11 +41,32 @@ const strokeDasharray = computed(() => {
   <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-xs transition-colors duration-200">
     <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-4">Розподіл завдань</h3>
 
-    <!-- Якщо немає завдань -->
-    <div v-if="stats.total === 0" class="text-center py-8 text-sm text-slate-400 dark:text-slate-500">
+    <!-- СТАН ЗАВАНТАЖЕННЯ (Скелетон) -->
+    <div v-if="tasksStore.isLoading" class="flex flex-col sm:flex-row items-center gap-6 justify-between animate-pulse">
+      <!-- Скелетон кругової діаграми -->
+      <div class="relative w-36 h-36 shrink-0 rounded-full border-[12px] border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center">
+        <div class="w-8 h-6 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
+        <div class="w-10 h-3 bg-slate-200 dark:bg-slate-800 rounded"></div>
+      </div>
+
+      <!-- Скелетон легенди -->
+      <div class="w-full space-y-3">
+        <div v-for="n in 3" :key="n" class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-slate-200 dark:bg-slate-800"></div>
+            <div class="w-20 h-4 bg-slate-200 dark:bg-slate-800 rounded"></div>
+          </div>
+          <div class="w-12 h-4 bg-slate-200 dark:bg-slate-800 rounded"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- СТАН БЕЗ ДАНИХ -->
+    <div v-else-if="stats.total === 0" class="text-center py-8 text-sm text-slate-400 dark:text-slate-500">
       Немає завдань для відображення статистики
     </div>
 
+    <!-- ОСНОВНИЙ КОНТЕНТ -->
     <div v-else class="flex flex-col sm:flex-row items-center gap-6 justify-between">
       <!-- Donut Chart (SVG) -->
       <div class="relative w-36 h-36 shrink-0 flex items-center justify-center">
