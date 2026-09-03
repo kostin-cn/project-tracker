@@ -1,54 +1,85 @@
 <script setup lang="ts">
-import { reactive, watch, computed, onUnmounted } from 'vue'
+import { watch, computed, onUnmounted } from 'vue'
+import { useForm } from 'vee-validate'
+import { toTypedSchema } from '@vee-validate/zod'
+import { z } from 'zod'
 import { useProjectActions } from '@/composables/useProjectActions'
 
-const { isProjectModalOpen, editingProject, closeProjectModal, createProject, updateProject, isSubmitting } = useProjectActions()
+const {
+  isProjectModalOpen,
+  editingProject,
+  closeProjectModal,
+  createProject,
+  updateProject,
+  isSubmitting
+} = useProjectActions()
 
-const isEditing = computed(() => !!editingProject?.value?.id)
+const isEditing = computed(() => !!editingProject.value?.id)
 
-const form = reactive({
-  name: '',
-  description: ''
+// Zod-схема валідації
+const projectSchema = toTypedSchema(
+  z.object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'Вкажіть назву проєкту')
+      .max(100, 'Назва проєкту не повинна перевищувати 100 символів'),
+    description: z
+      .string()
+      .max(500, 'Опис не повинен перевищувати 500 символів')
+      .optional()
+  })
+)
+
+// Ініціалізація форми
+const { handleSubmit, errors, resetForm, defineField } = useForm({
+  validationSchema: projectSchema,
+  initialValues: {
+    name: '',
+    description: ''
+  }
 })
 
-const errors = reactive({
-  name: ''
+// defineField повертає значення та атрибути (включаючи onBlur)
+const [name, nameProps] = defineField('name', {
+  validateOnBlur: true // Явно гарантує валідацію при втраті фокусу
+})
+
+const [description, descriptionProps] = defineField('description', {
+  validateOnBlur: true
 })
 
 function syncForm() {
-  errors.name = ''
-  if (editingProject?.value) {
-    form.name = editingProject.value.name || ''
-    form.description = editingProject.value.description || ''
+  if (editingProject.value) {
+    resetForm({
+      values: {
+        name: editingProject.value.name || '',
+        description: editingProject.value.description || ''
+      }
+    })
   } else {
-    form.name = ''
-    form.description = ''
+    resetForm({
+      values: {
+        name: '',
+        description: ''
+      }
+    })
   }
 }
 
-function validateForm(): boolean {
-  errors.name = ''
-  if (!form.name.trim()) {
-    errors.name = 'Вкажіть назву проєкту'
-    return false
-  }
-  return true
-}
-
-async function handleSubmit() {
-  if (!validateForm()) return
-
+// handleSubmit спрацьовує при submit і провалідовує всі поля одразу
+const onSubmit = handleSubmit(async (values) => {
   const payload = {
-    name: form.name.trim(),
-    description: form.description?.trim() || ''
+    name: values.name.trim(),
+    description: values.description?.trim() || ''
   }
 
-  if (editingProject?.value?.id) {
+  if (editingProject.value?.id) {
     await updateProject(editingProject.value.id, payload, closeProjectModal)
   } else {
     await createProject(payload, closeProjectModal)
   }
-}
+})
 
 function handleKeyDown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
@@ -94,13 +125,15 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <form @submit.prevent="handleSubmit" class="space-y-4">
+      <form @submit.prevent="onSubmit" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             Назва проєкту <span class="text-rose-500 dark:text-rose-400">*</span>
           </label>
+          <!-- v-bind="nameProps" транслює на інпут події onBlur та onChange -->
           <input
-            v-model="form.name"
+            v-model="name"
+            v-bind="nameProps"
             type="text"
             placeholder="Наприклад: Розробка веб-сайту"
             class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
@@ -116,11 +149,16 @@ onUnmounted(() => {
             Опис проєкту
           </label>
           <textarea
-            v-model="form.description"
+            v-model="description"
+            v-bind="descriptionProps"
             rows="3"
             placeholder="Короткий опис цілей або етапів..."
             class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none"
+            :class="{ 'border-rose-400 dark:border-rose-500 bg-rose-50/30 dark:bg-rose-950/30': errors.description }"
           ></textarea>
+          <p v-if="errors.description" class="text-xs text-rose-500 dark:text-rose-400 mt-1.5">
+            {{ errors.description }}
+          </p>
         </div>
 
         <div class="flex justify-end gap-3 pt-2">

@@ -1,63 +1,97 @@
 <script setup lang="ts">
-import {reactive, watch, onUnmounted, computed} from 'vue'
+import { watch, onUnmounted, computed } from 'vue'
+import { useForm } from 'vee-validate'
+import { toTypedSchema } from '@vee-validate/zod'
+import { z } from 'zod'
 import { useTaskStore } from '@/stores/tasks'
-import { useTaskActions } from '@/composables/useTaskActions.ts'
+import { useTaskActions } from '@/composables/useTaskActions'
+import {TaskStatus} from "@/types";
 
 const props = defineProps<{
   projectId: number
 }>()
 
 const tasksStore = useTaskStore()
-const { isTaskModalOpen, creationTaskStatus, editingTask, closeTaskModal, createTask, updateTask, isSubmitting } = useTaskActions()
+const {
+  isTaskModalOpen,
+  creationTaskStatus,
+  editingTask,
+  closeTaskModal,
+  createTask,
+  updateTask,
+  isSubmitting
+} = useTaskActions()
 
 const isEditing = computed(() => !!editingTask?.value?.id)
 
-// Отримуємо поточну дату у форматі YYYY-MM-DD
+// Поточна дата YYYY-MM-DD для перевірки мінімальної дати
 const minDate = new Date().toISOString().split('T')[0] || ''
 
-const form = reactive({
-  title: '',
-  assignee: '',
-  status: creationTaskStatus.value,
-  dueDate: ''
+// Zod-схема валідації
+const taskSchema = toTypedSchema(
+  z.object({
+    title: z
+      .string()
+      .trim()
+      .min(1, 'Вкажіть назву завдання'),
+    assignee: z.string().optional(),
+    status: z.enum(TaskStatus),
+    dueDate: z
+      .string()
+      .min(1, 'Вкажіть термін виконання завдання')
+      .refine((date) => !date || date >= minDate, {
+        message: 'Дата не може бути в минулому'
+      })
+  })
+)
+
+// Ініціалізація форми VeeValidate
+const { handleSubmit, errors, resetForm, defineField } = useForm({
+  validationSchema: taskSchema,
+  initialValues: {
+    title: '',
+    assignee: '',
+    status: creationTaskStatus.value,
+    dueDate: ''
+  }
 })
 
-const errors = reactive({
-  title: '',
-  dueDate: ''
-})
+// Зв'язування полів з явною можливістю валідації на blur
+const [title, titleProps] = defineField('title', { validateOnBlur: true })
+const [assignee, assigneeProps] = defineField('assignee', { validateOnBlur: true })
+const [dueDate, dueDateProps] = defineField('dueDate', { validateOnBlur: true })
+const [status, statusProps] = defineField('status', { validateOnBlur: true })
 
 function syncForm() {
-  errors.title = ''
-  errors.dueDate = ''
   if (editingTask?.value) {
-    form.title = editingTask.value.title || ''
-    form.assignee = editingTask.value.assignee || ''
-    form.status = editingTask.value.status || creationTaskStatus.value
-    form.dueDate = editingTask.value.dueDate || ''
+    resetForm({
+      values: {
+        title: editingTask.value.title || '',
+        assignee: editingTask.value.assignee || '',
+        status: editingTask.value.status || creationTaskStatus.value || 'todo',
+        dueDate: editingTask.value.dueDate || ''
+      }
+    })
   } else {
-    form.title = ''
-    form.assignee = ''
-    form.status = creationTaskStatus.value
-    form.dueDate = ''
+    resetForm({
+      values: {
+        title: '',
+        assignee: '',
+        status: creationTaskStatus.value || 'todo',
+        dueDate: ''
+      }
+    })
   }
 }
 
-async function handleSubmit() {
-
-  errors.title = !form.title.trim() ? 'Вкажіть назву завдання' : ''
-  errors.dueDate = !form.dueDate ? 'Вкажіть термін виконання завдання' : ''
-
-  if (form.dueDate && form.dueDate < minDate) errors.dueDate = 'Дата не може бути в минулому'
-
-  if (errors.title || errors.dueDate) return;
-
+// Обробка відправки форми
+const onSubmit = handleSubmit(async (values) => {
   const payload = {
     projectId: props.projectId,
-    title: form.title.trim(),
-    assignee: form.assignee?.trim() || '',
-    status: form.status,
-    dueDate: form.dueDate
+    title: values.title.trim(),
+    assignee: values.assignee?.trim() || '',
+    status: values.status,
+    dueDate: values.dueDate
   }
 
   if (editingTask?.value?.id) {
@@ -65,7 +99,7 @@ async function handleSubmit() {
   } else {
     await createTask(payload, closeTaskModal)
   }
-}
+})
 
 function handleKeyDown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
@@ -86,7 +120,6 @@ watch(
   { immediate: true }
 )
 
-// Примусове очищення на випадок, якщо компонент знищиться при відкритій модалці
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
 })
@@ -103,22 +136,29 @@ onUnmounted(() => {
         <h3 class="text-lg font-bold text-slate-900 dark:text-white">
           {{ isEditing ? 'Редагувати завдання' : 'Нове завдання' }}
         </h3>
-        <button @click="closeTaskModal()" class="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 p-1">✕</button>
+        <button
+          type="button"
+          @click="closeTaskModal()"
+          class="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+        >
+          ✕
+        </button>
       </div>
 
-      <form @submit.prevent="handleSubmit" class="space-y-4">
+      <form @submit.prevent="onSubmit" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             Назва <span class="text-rose-500">*</span>
           </label>
           <input
-            v-model="form.title"
+            v-model="title"
+            v-bind="titleProps"
             type="text"
             placeholder="Наприклад: Зверстати верстку шапки"
-            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 dark:focus:border-emerald-400"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 dark:focus:border-emerald-400 transition-all"
             :class="{ 'border-rose-400 dark:border-rose-500 bg-rose-50/30 dark:bg-rose-950/30': errors.title }"
           />
-          <p v-if="errors.title" class="text-xs text-rose-500 dark:text-rose-400 mt-1">{{ errors.title }}</p>
+          <p v-if="errors.title" class="text-xs text-rose-500 dark:text-rose-400 mt-1.5">{{ errors.title }}</p>
         </div>
 
         <div>
@@ -126,14 +166,14 @@ onUnmounted(() => {
             Виконавець
           </label>
           <input
-            v-model="form.assignee"
+            v-model="assignee"
+            v-bind="assigneeProps"
             type="text"
             list="assignees-list"
             placeholder="Наприклад: Олександр Поліщук"
             class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 dark:focus:border-emerald-400 transition-all"
           />
 
-          <!-- Список підказок з гетера taskStore -->
           <datalist id="assignees-list">
             <option
               v-for="name in tasksStore.availableAssignees"
@@ -149,24 +189,26 @@ onUnmounted(() => {
               Термін виконання <span class="text-rose-500">*</span>
             </label>
             <input
-              v-model="form.dueDate"
+              v-model="dueDate"
+              v-bind="dueDateProps"
               type="date"
               :min="minDate"
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 dark:focus:border-emerald-400 transition-all cursor-pointer"
               :class="{ 'border-rose-400 dark:border-rose-500 bg-rose-50/30 dark:bg-rose-950/30': errors.dueDate }"
             />
-            <p v-if="errors.dueDate" class="text-xs text-rose-500 dark:text-rose-400 mt-1">{{ errors.dueDate }}</p>
+            <p v-if="errors.dueDate" class="text-xs text-rose-500 dark:text-rose-400 mt-1.5">{{ errors.dueDate }}</p>
           </div>
 
           <div>
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Колонка</label>
             <select
-              v-model="form.status"
+              v-model="status"
+              v-bind="statusProps"
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400"
             >
-              <option value="todo">До виконання</option>
-              <option value="in_progress">В роботі</option>
-              <option value="done">Виконано</option>
+              <option :value="TaskStatus.TODO">До виконання</option>
+              <option :value="TaskStatus.IN_PROGRESS">В роботі</option>
+              <option :value="TaskStatus.DONE">Виконано</option>
             </select>
           </div>
         </div>
@@ -175,7 +217,7 @@ onUnmounted(() => {
           <button
             type="button"
             @click="closeTaskModal()"
-            class="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            class="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             Скасувати
           </button>
