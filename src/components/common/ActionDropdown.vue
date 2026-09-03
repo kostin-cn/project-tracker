@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import {type DirectiveBinding, ref} from 'vue'
 import { ProjectStatus, type ProjectWithTaskCount, type Task } from '@/types'
 import { useProjectActions } from '@/composables/useProjectActions'
 import { useTaskActions } from '@/composables/useTaskActions'
@@ -17,7 +17,7 @@ const { openTaskModal, deleteTask } = useTaskActions()
 const isOpen = ref(false)
 
 const vClickOutside = {
-  mounted(el: HTMLElement & { _clickOutsideHandler?: (e: MouseEvent) => void }, binding: any) {
+  mounted(el: HTMLElement & { _clickOutsideHandler?: (e: MouseEvent) => void }, binding: DirectiveBinding<(e: MouseEvent) => void>) {
     el._clickOutsideHandler = (event: MouseEvent) => {
       // Якщо клік був поза елементом та його дочірніми вузлами
       if (!(el === event.target || el.contains(event.target as Node))) {
