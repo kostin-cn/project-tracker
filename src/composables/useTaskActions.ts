@@ -55,6 +55,7 @@ export function useTaskActions() {
       await tasksStore.updateTask(id, payload)
     } catch (error) {
       toast.error('Не вдалося зберегти новий порядок завдань')
+      throw error
     }
   }
 
