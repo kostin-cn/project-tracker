@@ -35,7 +35,7 @@ const taskSchema = toTypedSchema(
       .trim()
       .min(1, 'Вкажіть назву завдання'),
     assignee: z.string().optional(),
-    status: z.enum(TaskStatus),
+    status: z.nativeEnum(TaskStatus),
     dueDate: z
       .string()
       .min(1, 'Вкажіть термін виконання завдання')
@@ -68,7 +68,7 @@ function syncForm() {
       values: {
         title: editingTask.value.title || '',
         assignee: editingTask.value.assignee || '',
-        status: editingTask.value.status || creationTaskStatus.value || 'todo',
+        status: editingTask.value.status || creationTaskStatus.value,
         dueDate: editingTask.value.dueDate || ''
       }
     })
@@ -77,7 +77,7 @@ function syncForm() {
       values: {
         title: '',
         assignee: '',
-        status: creationTaskStatus.value || 'todo',
+        status: creationTaskStatus.value,
         dueDate: ''
       }
     })
