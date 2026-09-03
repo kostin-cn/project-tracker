@@ -5,6 +5,7 @@ import { toast } from 'vue-sonner'
 import { formatDate } from "@/utils/formatters.ts"
 import { type Task, TaskStatus } from "@/types"
 import { useTaskActions } from "@/composables/useTaskActions.ts"
+import ActionDropdown from "@/components/common/ActionDropdown.vue";
 
 const props = defineProps<{
   isLoading: boolean
@@ -12,11 +13,7 @@ const props = defineProps<{
   searchQuery?: string
 }>()
 
-const emit = defineEmits<{
-  (e: 'openModal', status: TaskStatus): void
-}>()
-
-const { updateTask, deleteTask } = useTaskActions()
+const { openTaskModal, moveTask } = useTaskActions()
 
 // Список колонок Kanban-дошки
 const columns: { id: TaskStatus; title: string; color: string; badgeBg: string }[] = [
@@ -103,7 +100,7 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
     if (task.status !== targetStatus || task.order !== newOrder) {
       task.status = targetStatus
       task.order = newOrder
-      await updateTask(task.id, { ...task, status: targetStatus, order: newOrder })
+      await moveTask(task.id, { status: targetStatus, order: newOrder })
     }
   }
 }
@@ -137,7 +134,7 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
         </div>
 
         <button
-          @click="emit('openModal', col.id)"
+          @click="openTaskModal(col.id)"
           class="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors text-sm cursor-pointer"
           title="Додати завдання в цю колонку"
         >
@@ -200,16 +197,11 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
                     {{ task.title }}
                   </h3>
 
-                  <button
-                    type="button"
-                    @click.stop="deleteTask(task.id, task.title)"
-                    class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer shrink-0"
-                    title="Видалити завдання"
-                  >
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  <action-dropdown
+                    :task="task"
+                    :index="0"
+                    :length="tasks.length"
+                  />
                 </div>
 
                 <!-- Футер картки: Метадані та Виконавець -->

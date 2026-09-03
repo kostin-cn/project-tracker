@@ -1,20 +1,23 @@
 <script setup lang="ts">
-import {computed, ref, watch} from 'vue'
+import {computed, watch} from 'vue'
 import {RouterLink} from 'vue-router'
 import {useProjectStore} from '@/stores/projects'
 import {useTaskStore} from '@/stores/tasks'
 import {ProjectStatus, TaskStatus} from "@/types";
-import TaskCreateModal from "@/components/tasks/TaskCreateModal.vue";
+import TaskFormModal from "@/components/tasks/TaskFormModal.vue";
 import {useLocalStorageRef} from "@/composables/useLocalStorageRef.ts";
 import ViewModeToggle, { type ToggleOption } from '@/components/common/ViewModeToggle.vue'
 import TasksKanban from "@/components/tasks/TasksKanban.vue";
 import TasksTable from "@/components/tasks/TasksTable.vue";
 import { useTableSort } from '@/composables/useTableSort'
+import { useTaskActions } from "@/composables/useTaskActions.ts";
 
 // Отримуємо id проекту з пропсів роутера (автоматично конвертований у number)
 const props = defineProps<{
   id: number
 }>()
+
+const { isTaskModalOpen, openTaskModal } = useTaskActions()
 
 const projectsStore = useProjectStore()
 const tasksStore = useTaskStore()
@@ -36,7 +39,7 @@ const currentViewComponent = computed(() => {
 type TaskSortField = 'createdAt' | 'title' | 'assignee' | 'status' | 'dueDate' | 'order'
 
 const { searchQuery, statusFilter, assigneeFilter, sortBy, sortOrder, handleSort } = useTableSort<TaskSortField>({
-  defaultSort: 'createdAt',
+  defaultSort: 'order',
   defaultOrder: 'asc'
 })
 
@@ -80,15 +83,6 @@ const filteredTasks = computed(() => {
 // Кількість завдань по статусах
 function getCountTasksByStatus(status: TaskStatus) {
   return tasksStore.tasks.filter((task) => task.status === status).length
-}
-
-// Модальне вікно створення завдання
-const isModalOpen = ref(false)
-const creationStatus = ref(TaskStatus.TODO)
-
-function openModal(status: TaskStatus) {
-  isModalOpen.value = true
-  creationStatus.value = status
 }
 
 watch(
@@ -156,7 +150,7 @@ watch(
 
         <!-- Кнопка створення завдання (доступна одразу) -->
         <button
-          @click="openModal(TaskStatus.TODO)"
+          @click="openTaskModal(TaskStatus.TODO)"
           :disabled="projectsStore.isLoading"
           class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-medium text-sm transition-colors shadow-xs cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -280,16 +274,14 @@ watch(
           :sort-by="sortBy"
           :sort-order="sortOrder"
           @sort="handleSort"
-          @openModal="openModal"
         />
       </KeepAlive>
     </Transition>
 
     <!-- Модальне вікно створення завдання -->
-    <TaskCreateModal
-      v-model:is-open="isModalOpen"
+    <TaskFormModal
+      v-if="isTaskModalOpen"
       :project-id="id"
-      :creation-status="creationStatus"
     />
   </div>
 </template>

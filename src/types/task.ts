@@ -16,3 +16,9 @@ export interface Task {
 }
 
 export type CreateTaskInput = Omit<Task, 'id' | 'order' | 'createdAt'>;
+
+// Спеціальний тип для Drag & Drop переміщення
+export type MoveTaskInput = {
+  status?: TaskStatus;
+  order: number;
+};

@@ -37,10 +37,9 @@ const router = createRouter({
   }
 })
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach((to) => {
   const pageTitle = to.meta.title as string | undefined
   document.title = pageTitle ? `${pageTitle} | Project Tracker` : 'Project Tracker'
-  next()
 })
 
 export default router

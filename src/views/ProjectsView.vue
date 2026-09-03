@@ -1,9 +1,9 @@
 <script setup lang="ts">
 // Vue core & third-party libraries
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 
 // Types & Interfaces
-import type { ProjectWithTaskCount } from '@/types'
+import type {ProjectWithTaskCount} from '@/types'
 
 // Stores
 import { useProjectStore } from '@/stores/projects'
@@ -11,15 +11,18 @@ import { useProjectStore } from '@/stores/projects'
 // Composables
 import { useLocalStorageRef } from '@/composables/useLocalStorageRef'
 import { useTableSort } from '@/composables/useTableSort'
+import { useProjectActions } from "@/composables/useProjectActions.ts";
 
 // Common UI Components
 import TaskStatusChart from '@/components/common/TaskStatusChart.vue'
 import ViewModeToggle, { type ToggleOption } from '@/components/common/ViewModeToggle.vue'
 
 // Domain Components (Projects)
-import ProjectCreateModal from '@/components/projects/ProjectCreateModal.vue'
+import ProjectFormModal from '@/components/projects/ProjectFormModal.vue'
 import ProjectsGrid from '@/components/projects/ProjectsGrid.vue'
 import ProjectsTable from '@/components/projects/ProjectsTable.vue'
+
+const { isProjectModalOpen, openProjectModal } = useProjectActions()
 
 const projectsStore = useProjectStore()
 
@@ -37,8 +40,6 @@ const projectViewOptions: ToggleOption<ProjectViewMode>[] = [
 const currentViewComponent = computed(() => {
   return viewMode.value === 'grid' ? ProjectsGrid : ProjectsTable
 })
-
-const isModalOpen = ref(false)
 
 // Початкові значення з URL query (з дефолтними фолбеками)
 type ProjectSortField = 'createdAt' | 'name' | 'tasksCount' | 'status'
@@ -101,7 +102,7 @@ const { isSeeding, loadDemoData } = useDemoData()
       </div>
 
       <button
-        @click="isModalOpen = true"
+        @click="openProjectModal()"
         class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm transition-colors shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
       >
         <span class="text-lg leading-none">+</span>
@@ -191,7 +192,7 @@ const { isSeeding, loadDemoData } = useDemoData()
           <!-- Кнопка створення проєкту -->
           <button
             type="button"
-            @click="isModalOpen = true"
+            @click="openProjectModal()"
             class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-white text-white dark:text-slate-900 text-sm font-medium transition-colors cursor-pointer"
           >
             <span>+ Створити проєкт</span>
@@ -233,6 +234,6 @@ const { isSeeding, loadDemoData } = useDemoData()
     </Transition>
 
     <!-- Модальне вікно створення проєкту -->
-    <ProjectCreateModal v-model:is-open="isModalOpen" />
+    <ProjectFormModal v-if="isProjectModalOpen" />
   </div>
 </template>

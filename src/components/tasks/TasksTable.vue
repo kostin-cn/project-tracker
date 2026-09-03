@@ -2,7 +2,7 @@
 import {type Task, TaskStatus} from "@/types";
 import {formatDate} from '@/utils/formatters'
 import {useColumnResize} from '@/composables/useColumnResize'
-import {useTaskActions} from "@/composables/useTaskActions.ts";
+import ActionDropdown from "@/components/common/ActionDropdown.vue";
 
 defineProps<{
   isLoading: boolean
@@ -11,8 +11,6 @@ defineProps<{
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
 }>()
-
-const { deleteTask } = useTaskActions()
 
 const emit = defineEmits<{
   (e: 'sort', field: string): void
@@ -33,10 +31,10 @@ const { colWidths, startResize } = useColumnResize<TaskColumnKey>(
     dueDate: 160,
     assignee: 180,
     createdAt: 140,
-    actions: 80
+    actions: 56
   },
   {
-    actions: 80 // Кастомна мінімальна ширина для колонки дій
+    actions: 48 // Кастомна мінімальна ширина для колонки дій
   }
 )
 
@@ -169,7 +167,7 @@ const getStatusLabel = (status: TaskStatus) => {
         <!-- СТАН З ДАНИМИ -->
         <template v-else-if="tasks && tasks.length > 0">
           <tr
-            v-for="task in tasks"
+            v-for="(task, index) in tasks"
             :key="task.id"
             class="group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
           >
@@ -223,17 +221,11 @@ const getStatusLabel = (status: TaskStatus) => {
             <!-- Дії -->
             <td class="px-5 py-4 whitespace-nowrap text-right">
               <div class="flex items-center justify-end gap-1">
-                <!-- Видалити -->
-                <button
-                  type="button"
-                  @click.prevent="deleteTask(task.id, task.title)"
-                  class="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-all cursor-pointer"
-                  title="Видалити завдання"
-                >
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
+                <action-dropdown
+                  :task="task"
+                  :index="index"
+                  :length="tasks.length"
+                />
               </div>
             </td>
           </tr>

@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { reactive, watch, onUnmounted } from 'vue'
+import {reactive, watch, onUnmounted, computed} from 'vue'
 import { useTaskStore } from '@/stores/tasks'
-import {TaskStatus} from "@/types";
 import { useTaskActions } from '@/composables/useTaskActions.ts'
 
 const props = defineProps<{
-  projectId: number,
-  creationStatus: TaskStatus
+  projectId: number
 }>()
 
-const isOpen = defineModel<boolean>('isOpen', { default: false })
 const tasksStore = useTaskStore()
-const { createTask, isSubmitting } = useTaskActions()
+const { isTaskModalOpen, creationTaskStatus, editingTask, closeTaskModal, createTask, updateTask, isSubmitting } = useTaskActions()
+
+const isEditing = computed(() => !!editingTask?.value?.id)
 
 // Отримуємо поточну дату у форматі YYYY-MM-DD
 const minDate = new Date().toISOString().split('T')[0] || ''
@@ -19,7 +18,7 @@ const minDate = new Date().toISOString().split('T')[0] || ''
 const form = reactive({
   title: '',
   assignee: '',
-  status: props.creationStatus,
+  status: creationTaskStatus.value,
   dueDate: ''
 })
 
@@ -28,17 +27,20 @@ const errors = reactive({
   dueDate: ''
 })
 
-function closeModal() {
-  isOpen.value = false
-}
-
-function resetForm() {
-  form.title = ''
-  form.assignee = ''
-  form.status = props.creationStatus
-  form.dueDate = ''
+function syncForm() {
   errors.title = ''
   errors.dueDate = ''
+  if (editingTask?.value) {
+    form.title = editingTask.value.title || ''
+    form.assignee = editingTask.value.assignee || ''
+    form.status = editingTask.value.status || creationTaskStatus.value
+    form.dueDate = editingTask.value.dueDate || ''
+  } else {
+    form.title = ''
+    form.assignee = ''
+    form.status = creationTaskStatus.value
+    form.dueDate = ''
+  }
 }
 
 async function handleSubmit() {
@@ -50,29 +52,39 @@ async function handleSubmit() {
 
   if (errors.title || errors.dueDate) return;
 
-  await createTask({
+  const payload = {
     projectId: props.projectId,
     title: form.title.trim(),
     assignee: form.assignee?.trim() || '',
     status: form.status,
     dueDate: form.dueDate
-  }, closeModal)
+  }
+
+  if (editingTask?.value?.id) {
+    await updateTask(editingTask.value.id, payload, closeTaskModal)
+  } else {
+    await createTask(payload, closeTaskModal)
+  }
 }
 
 function handleKeyDown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
-    closeModal()
+    closeTaskModal()
   }
 }
 
-watch(isOpen, (newVal) => {
-  if (newVal) {
-    resetForm()
-    window.addEventListener('keydown', handleKeyDown)
-  } else {
-    window.removeEventListener('keydown', handleKeyDown)
-  }
-})
+watch(
+  [isTaskModalOpen, editingTask],
+  ([isOpen]) => {
+    if (isOpen) {
+      syncForm()
+      window.addEventListener('keydown', handleKeyDown)
+    } else {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  },
+  { immediate: true }
+)
 
 // Примусове очищення на випадок, якщо компонент знищиться при відкритій модалці
 onUnmounted(() => {
@@ -82,14 +94,16 @@ onUnmounted(() => {
 
 <template>
   <div
-    v-if="isOpen"
+    v-if="isTaskModalOpen"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-slate-950/70 backdrop-blur-xs"
-    @click.self="closeModal"
+    @click.self="closeTaskModal()"
   >
     <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-5">
       <div class="flex items-center justify-between">
-        <h3 class="text-lg font-bold text-slate-900 dark:text-white">Нове завдання</h3>
-        <button @click="closeModal" class="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 p-1">✕</button>
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white">
+          {{ isEditing ? 'Редагувати завдання' : 'Нове завдання' }}
+        </h3>
+        <button @click="closeTaskModal()" class="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 p-1">✕</button>
       </div>
 
       <form @submit.prevent="handleSubmit" class="space-y-4">
@@ -160,7 +174,7 @@ onUnmounted(() => {
         <div class="flex justify-end gap-3 pt-3">
           <button
             type="button"
-            @click="closeModal"
+            @click="closeTaskModal()"
             class="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             Скасувати
@@ -170,7 +184,12 @@ onUnmounted(() => {
             :disabled="isSubmitting"
             class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white text-sm font-medium shadow-xs disabled:opacity-50 cursor-pointer transition-colors"
           >
-            {{ isSubmitting ? 'Збереження...' : 'Додати' }}
+            <template v-if="isSubmitting">
+              {{ isEditing ? 'Збереження...' : 'Додавання...' }}
+            </template>
+            <template v-else>
+              {{ isEditing ? 'Зберегти' : 'Додати' }}
+            </template>
           </button>
         </div>
       </form>
