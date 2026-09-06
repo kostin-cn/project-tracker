@@ -46,11 +46,12 @@ const { searchQuery, statusFilter, assigneeFilter, sortBy, sortOrder, handleSort
 const sortOptions: { value: TaskSortField; label: string }[] = [
   { value: 'order', label: 'По порядку' },
   { value: 'title', label: 'Назва' },
-  { value: 'status', label: 'Статус' },
   { value: 'assignee', label: 'Виконавець' },
   { value: 'dueDate', label: 'Термін' },
   { value: 'createdAt', label: 'Дата створення' }
 ]
+
+const statusOrder = Object.values(TaskStatus)
 
 const filteredTasks = computed(() => {
   let list = tasksStore.tasks
@@ -72,13 +73,37 @@ const filteredTasks = computed(() => {
     const mod = sortOrder.value === 'asc' ? 1 : -1
     switch (sortBy.value) {
       case 'title': return a.title.localeCompare(b.title, 'uk-UA') * mod
-      case 'status': return a.status.localeCompare(b.status) * mod
+      case 'assignee': {
+        const nameA = a.assignee?.trim() ?? ''
+        const nameB = b.assignee?.trim() ?? ''
+
+        // Порожні (Unassigned) завжди в кінці списку
+        if (!nameA && nameB) return 1
+        if (nameA && !nameB) return -1
+        if (!nameA && !nameB) return 0
+
+        return nameA.localeCompare(nameB, 'uk-UA') * mod
+      }
       case 'dueDate': return (new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()) * mod
       case 'createdAt': return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * mod
-      default: return (a.order - b.order) * mod
+      default: return ((statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)) || ((a.order ?? 0) - (b.order ?? 0)) || (a.id - b.id)) * mod
     }
   })
 })
+
+const isDndDisabled = computed(() =>
+  Boolean(searchQuery.value?.trim()) ||
+  Boolean(statusFilter.value !== 'all') ||
+  Boolean(assigneeFilter.value !== 'all') ||
+  Boolean(sortBy.value !== 'order') ||
+  sortOrder.value === 'desc'
+)
+
+const isFiltered = computed(() =>
+  Boolean(searchQuery.value?.trim()) ||
+  Boolean(statusFilter.value !== 'all') ||
+  Boolean(assigneeFilter.value !== 'all')
+)
 
 // Кількість завдань по статусах
 function getCountTasksByStatus(status: TaskStatus) {
@@ -268,12 +293,13 @@ watch(
       <KeepAlive key="content">
         <component
           :is="currentViewComponent"
-          :is-loading="tasksStore.isLoading"
+          :project-id="id"
           :tasks="filteredTasks"
-          :search-query="searchQuery"
+          :is-dnd-disabled="isDndDisabled"
+          :is-filtered="isFiltered"
           :sort-by="sortBy"
           :sort-order="sortOrder"
-          @sort="handleSort"
+          @change-sort="handleSort"
         />
       </KeepAlive>
     </Transition>

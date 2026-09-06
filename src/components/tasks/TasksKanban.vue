@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { watch } from 'vue'
 import draggable from 'vuedraggable'
 import { toast } from 'vue-sonner'
 import { formatDate } from "@/utils/formatters.ts"
 import { type Task, TaskStatus } from "@/types"
+import {useTaskStore} from '@/stores/tasks'
 import { useTaskActions } from "@/composables/useTaskActions.ts"
 import ActionDropdown from "@/components/common/ActionDropdown.vue";
 
 const props = defineProps<{
-  isLoading: boolean
+  projectId: number
+  isDndDisabled: boolean
   tasks: Task[]
-  searchQuery?: string
+  isFiltered: boolean
 }>()
 
+const tasksStore = useTaskStore()
 const { openTaskModal, moveTask } = useTaskActions()
 
 // Список колонок Kanban-дошки
@@ -37,72 +40,133 @@ const columns: { id: TaskStatus; title: string; color: string; badgeBg: string }
   }
 ]
 
-// Локальний реактивний стан завдань, розгрупований по колонках для vuedraggable
-const columnTasks = reactive<Record<TaskStatus, Task[]>>({
-  [TaskStatus.TODO]: [],
-  [TaskStatus.IN_PROGRESS]: [],
-  [TaskStatus.DONE]: []
-})
+// Локальний стан завдань, розгрупований по колонках для vuedraggable
+const columnTasks = {
+  [TaskStatus.TODO]: [] as Task[],
+  [TaskStatus.IN_PROGRESS]: [] as Task[],
+  [TaskStatus.DONE]: [] as Task[]
+}
 
-// Синхронізація входження props.tasks з локальним станом із сортуванням за order
+function syncColumnTasks() {
+  columns.forEach((col) => columnTasks[col.id] = props.tasks.filter((task) => task.status === col.id))
+}
+
 watch(
   () => props.tasks,
-  (newTasks) => {
-    columns.forEach((col) => {
-      columnTasks[col.id] = newTasks
-        .filter((task) => task.status === col.id)
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-    })
-  },
+  () => syncColumnTasks(),
   { immediate: true, deep: true }
 )
 
 // Загальна кількість завдань у статусі (без урахування пошуку)
 function getCountTasksByStatus(status: TaskStatus) {
-  return props.tasks.filter((task) => task.status === status).length
+  return tasksStore.tasks.filter((task) => task.status === status).length
 }
 
 // Обробник подій перетягування (зміна порядку / зміна колонки)
 // Опис структури подій vuedraggable
-interface DraggableAdded<T> {
-  newIndex: number
-  element: T
+interface DraggableChangeEvent {
+  added?: { newIndex: number; element: Task }
+  removed?: { oldIndex: number; element: Task }
+  moved?: { newIndex: number; oldIndex: number; element: Task }
 }
 
-interface DraggableRemoved<T> {
-  oldIndex: number
-  element: T
-}
-
-interface DraggableMoved<T> {
-  newIndex: number
-  oldIndex: number
-  element: T
-}
-
-export interface DraggableChangeEvent<T = Task> {
-  added?: DraggableAdded<T>
-  removed?: DraggableRemoved<T>
-  moved?: DraggableMoved<T>
-}
-
-async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskStatus) {
-  if (event.added) {
-    const colTitle = columns.find((c) => c.id === targetStatus)?.title
-    toast.success(`Завдання переміщено у "${colTitle}"`)
+async function onChange(event: DraggableChangeEvent, targetStatus: TaskStatus) {
+  if (props.isDndDisabled) {
+    syncColumnTasks()
+    return
   }
 
-  // Синхронізуємо `order` та `status` для всіх елементів колонки, де відбулися зміни
-  const currentTasks = columnTasks[targetStatus]
-  for (const [i, task] of currentTasks.entries()) {
-    const newOrder = i + 1
-
-    if (task.status !== targetStatus || task.order !== newOrder) {
-      task.status = targetStatus
-      task.order = newOrder
-      await moveTask(task.id, { status: targetStatus, order: newOrder })
+  try {
+    const addedTask = event.added?.element
+    if (event.added) {
+      const colTitle = columns.find((c) => c.id === targetStatus)?.title
+      toast.success(`Завдання переміщено у "${colTitle}"`)
     }
+
+    const tasksToUpdate: Promise<void>[] = []
+    columnTasks[targetStatus].forEach((task, index) => {
+      if (task.id === addedTask?.id) {
+        task.status = targetStatus
+        task.order = index + 1
+        tasksToUpdate.push(moveTask(task.id, { status: task.status, order: task.order }))
+      } else if (task.order !== index + 1) {
+        task.order = index + 1
+        tasksToUpdate.push(moveTask(task.id, { order: task.order }))
+      }
+    })
+
+    await Promise.all(tasksToUpdate)
+
+  } catch (error) {
+    toast.error('Не вдалося зберегти новий порядок завдань')
+    await tasksStore.fetchTasksByProject(props.projectId)
   }
+
+  // if (event.removed) {
+  //   const oldOrder = event.removed.oldIndex + 1
+  //
+  //   const tasksToUpdate: Promise<void>[] = []
+  //
+  //   for (const task of columnTasks[targetStatus]) {
+  //     if (task.order > oldOrder) {
+  //       task.order -= 1
+  //       tasksToUpdate.push(moveTask(task.id, { order: task.order }))
+  //     }
+  //   }
+  //
+  //   await Promise.all(tasksToUpdate)
+  // }
+  //
+  // if (event.moved) {
+  //   const oldOrder = event.moved.oldIndex + 1
+  //   const newOrder = event.moved.newIndex + 1
+  //
+  //   if (oldOrder === newOrder) return
+  //
+  //   const tasksToUpdate: Promise<void>[] = []
+  //
+  //   for (const task of columnTasks[targetStatus]) {
+  //     if (task.id === event.moved.element.id) {
+  //       task.order = newOrder
+  //       tasksToUpdate.push(moveTask(task.id, { order: task.order }))
+  //     } else if (oldOrder < newOrder) {
+  //       if (task.order > oldOrder && task.order <= newOrder) {
+  //         task.order -= 1
+  //         tasksToUpdate.push(moveTask(task.id, { order: task.order }))
+  //       }
+  //     } else {
+  //       if (task.order >= newOrder && task.order < oldOrder) {
+  //         task.order += 1
+  //         tasksToUpdate.push(moveTask(task.id, { order: task.order }))
+  //       }
+  //     }
+  //   }
+  //
+  //   await Promise.all(tasksToUpdate)
+  // }
+  //
+  // if (event.added) {
+  //   const newOrder = event.added.newIndex + 1
+  //   const addedTask = event.added.element
+  //   const tasksToUpdate: Promise<void>[] = []
+  //
+  //   for (const task of columnTasks[targetStatus]) {
+  //     if (task.id !== addedTask.id && task.order >= newOrder) {
+  //       task.order += 1
+  //       tasksToUpdate.push(moveTask(task.id, { order: task.order }))
+  //     }
+  //   }
+  //
+  //   // Оновлюємо додану таску
+  //   addedTask.status = targetStatus
+  //   addedTask.order = newOrder
+  //   tasksToUpdate.push(moveTask(addedTask.id, { status: addedTask.status, order: addedTask.order }))
+  //
+  //   await Promise.all(tasksToUpdate)
+  //
+  //   const colTitle = columns.find((c) => c.id === targetStatus)?.title
+  //   toast.success(`Завдання переміщено у "${colTitle}"`)
+  // }
 }
 </script>
 
@@ -121,7 +185,7 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
 
           <!-- Скелетон бейджа / Реальний бейдж -->
           <span
-            v-if="isLoading"
+            v-if="tasksStore.isLoading"
             class="w-6 h-4 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse"
           ></span>
           <span
@@ -129,7 +193,7 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
             class="px-2 py-0.5 rounded-full text-xs font-bold"
             :class="col.badgeBg"
           >
-            {{ searchQuery ? `${columnTasks[col.id].length}/${getCountTasksByStatus(col.id)}` : columnTasks[col.id].length }}
+            {{ isFiltered ? `${columnTasks[col.id].length}/${getCountTasksByStatus(col.id)}` : columnTasks[col.id].length }}
           </span>
         </div>
 
@@ -146,7 +210,7 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
       <div class="flex-1 flex flex-col">
         <!-- 1. Скелетон карток під час завантаження -->
         <div
-          v-if="isLoading"
+          v-if="tasksStore.isLoading"
           class="space-y-3"
         >
           <div
@@ -172,9 +236,10 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
             group="tasks"
             item-key="id"
             :animation="200"
-            ghost-class="ghost-card"
-            drag-class="drag-card"
+            ghost-class="dnd-ghost"
+            drag-class="dnd-drag"
             class="relative space-y-3 flex-1 min-h-[150px] pb-4 [&:has(.ghost-card)_.empty-placeholder]:opacity-0"
+            :disabled="isDndDisabled"
             @change="onChange($event, col.id)"
           >
             <!-- Заглушка всередині draggable через слот header -->
@@ -189,7 +254,8 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
 
             <template #item="{ element: task }">
               <div
-                class="group bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-xl p-3.5 shadow-xs hover:shadow-md transition-colors cursor-grab active:cursor-grabbing flex flex-col justify-between gap-3 relative"
+                class="group bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-xl p-3.5 shadow-xs hover:shadow-md transition-colors flex flex-col justify-between gap-3 relative"
+                :class="isDndDisabled ? '' : 'cursor-grab active:cursor-grabbing'"
               >
                 <!-- Шапка: Заголовок + Дії -->
                 <div class="flex items-start justify-between gap-2">
@@ -244,24 +310,3 @@ async function onChange(event: DraggableChangeEvent<Task>, targetStatus: TaskSta
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Стиль місця, куди буде вставлено картку */
-.ghost-card {
-  opacity: 0.4;
-  background-color: rgba(241, 245, 249, 0.5);
-  border: 2px dashed #94a3b8 !important;
-}
-
-:deep(.dark) .ghost-card {
-  background-color: rgba(30, 41, 59, 0.5);
-  border-color: #475569 !important;
-}
-
-/* Стиль картки, яку безпосередньо перетягують */
-.drag-card {
-  opacity: 0.95;
-  transform: scale(1.02) rotate(1deg);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-}
-</style>
