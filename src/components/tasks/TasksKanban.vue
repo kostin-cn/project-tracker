@@ -97,7 +97,7 @@ async function onChange(event: DraggableChangeEvent, targetStatus: TaskStatus) {
 
     await Promise.all(tasksToUpdate)
 
-  } catch (error) {
+  } catch {
     toast.error('Не вдалося зберегти новий порядок завдань')
     await tasksStore.fetchTasksByProject(props.projectId)
   }

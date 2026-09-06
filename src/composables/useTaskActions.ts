@@ -51,11 +51,7 @@ export function useTaskActions() {
   }
 
   async function moveTask(id: number, payload: MoveTaskInput) {
-    try {
-      await tasksStore.updateTask(id, payload)
-    } catch (error) {
-      throw error
-    }
+    await tasksStore.updateTask(id, payload)
   }
 
   async function deleteTask(id: number, title: string) {
