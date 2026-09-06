@@ -75,10 +75,9 @@ async function onChange() {
 
     // Перераховуємо order для всіх елементів у відфільтрованому/відсортованому списку
     localTasks.value.forEach((task, index) => {
-      const newOrder = index + 1
-      if (task.order !== newOrder) {
-        task.order = newOrder
-        tasksToUpdate.push(moveTask(task.id, { order: newOrder }))
+      if (task.order !== index + 1) {
+        task.order = index + 1
+        tasksToUpdate.push(moveTask(task.id, { order: task.order }))
       }
     })
 
