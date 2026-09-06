@@ -1,46 +1,72 @@
-in Vite.
+# Project Tracker
 
-## Recommended IDE Setup
+[![Project Tracker](https://kostin-cn.github.io/project-tracker/)](https://kostin-cn.github.io/project-tracker/)
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+## Опис
 
-## Recommended Browser Setup
+Project Tracker — це веб-додаток для керування проєктами та завданнями, побудований на Vue 3, TypeScript, Pinia та Tailwind CSS. Додаток дозволяє створювати проєкти, додавати завдання, організовувати їх у Kanban-дошці та таблиці, а також відстежувати прогрес виконання.
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+## Розгорнута версія
 
-## Type Support for `.vue` Imports in TS
+[Project Tracker](https://kostin-cn.github.io/project-tracker/)
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+## Архітектурні рішення
 
-## Customize configuration
+### Структура компонентів
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+Проєкт використовує атомарну структуру компонентів, розділену на доменні області:
 
-## Project Setup
+- `common/` — спільні компоненти (шапка, модальні вікна, діаграми)
+- `projects/` — компоненти для роботи з проєктами (форми, таблиці, картки)
+- `tasks/` — компоненти для роботи з завданнями (Kanban-дошка, таблиця завдань)
 
-```sh
-npm install
-```
+### Composables
 
-### Compile and Hot-Reload for Development
+Для повторного використання логіки використовуються composables:
 
-```sh
-npm run dev
-```
+- `useProjectActions.ts` — дії з проєктами (створення, редагування, видалення)
+- `useTaskActions.ts` — дії з завданнями (створення, редагування, видалення, переміщення)
+- `useTableSort.ts` — логіка сортування та фільтрації таблиць
+- `useColumnResize.ts` — логіка зміни розмірів колонок таблиць
+- `useLocalStorageRef.ts` — синхронізація стану з localStorage
+- `useDemoData.ts` — завантаження демонстраційних даних
 
-### Type-Check, Compile and Minify for Production
+### API-шар
 
-```sh
-npm run build
-```
+Для взаємодії з даними використовується мок-адаптер, який симулює роботу з бекендом:
 
-### Lint with [ESLint](https://eslint.org/)
+- `api/client.ts` — конфігурація Axios з мок-адаптером
+- `api/mockAdapter.ts` — реалізація мок-адаптера
+- `api/projects.ts` — методи для роботи з проєктами
+- `api/tasks.ts` — методи для роботи з завданнями
 
-```sh
-npm run lint
-```
+## Локальний запуск
+
+1. Клонуйте репозиторій:
+   ```sh
+   git clone https://github.com/kostin-cn/project-tracker.git
+   ```
+
+2. Встановіть залежності:
+   ```sh
+   npm install
+   ```
+
+3. Запустіть сервер розробки:
+   ```sh
+   npm run dev
+   ```
+
+## Мок-адаптер
+
+Мок-адаптер симулює роботу з бекендом, зберігаючи дані в localStorage. Це дозволяє розробляти та тестувати додаток без реального бекенду.
+
+### Основні особливості мок-адаптера:
+
+1. **Збереження даних**: Всі дані зберігаються в localStorage під ключем `mockData`.
+2. **Симуляція затримки**: Для кожного запиту додається випадкова затримка (150-350 мс), щоб симулювати мережевий запит.
+3. **CRUD-операції**: Реалізовані всі основні операції (створення, читання, оновлення, видалення).
+4. **Каскадне видалення**: При видаленні проєкту автоматично видаляються всі пов'язані завдання.
+5. **Автоматичне призначення порядку**: Для завдань автоматично обчислюється порядок (order) в межах однієї колонки Kanban-дошки.
+
+Мок-адаптер використовується в `api/client.ts` замість реального HTTP-клієнта, що дозволяє розробляти та тестувати додаток без необхідності запускати бекенд-сервер.
